@@ -29,21 +29,33 @@ export default function Home() {
     scrollToBottom();
   }, [messages]);
 
-  // Check backend connection on mount
+  // Check backend connection on mount with retry for cold starts
   useEffect(() => {
-    const checkBackend = async () => {
-      try {
-        const response = await fetch(`${API_URL}/`);
-        if (response.ok) {
-          setBackendStatus("online");
-          console.log("Backend is online");
-        } else {
-          setBackendStatus("offline");
+    const checkBackend = async (retries = 3, delay = 5000) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout for cold start
+          
+          const response = await fetch(`${API_URL}/`, {
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          
+          if (response.ok) {
+            setBackendStatus("online");
+            console.log("Backend is online");
+            return;
+          }
+        } catch (error) {
+          console.log(`Backend connection attempt ${i + 1}/${retries} failed, retrying...`);
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
         }
-      } catch (error) {
-        console.error("Backend connection failed:", error);
-        setBackendStatus("offline");
       }
+      console.error("Backend connection failed after retries");
+      setBackendStatus("offline");
     };
     checkBackend();
   }, []);
@@ -102,8 +114,20 @@ export default function Home() {
     }
 
     if (backendStatus === "offline") {
-      setUploadStatus("❌ Backend server is offline. Please start the backend on port 8000.");
-      return;
+      setUploadStatus("⏳ Waking up backend server... Please wait.");
+      setBackendStatus("checking");
+      // Try to wake up the server
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+        await fetch(`${API_URL}/`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        setBackendStatus("online");
+      } catch {
+        setUploadStatus("❌ Backend server is unavailable. Please try again later.");
+        setBackendStatus("offline");
+        return;
+      }
     }
 
     const formData = new FormData();
