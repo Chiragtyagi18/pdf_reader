@@ -20,7 +20,7 @@ app = FastAPI(title="PDF Reader API", version="1.0.0")
 # CORS middleware for frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://pdf-reader-self.vercel.app/"],
+    allow_origins=["https://pdf-reader-self.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
